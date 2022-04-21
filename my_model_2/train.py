@@ -57,8 +57,9 @@ class DQNLightning(LightningModule):
             warm_start_steps: max episode reward in the environment
         """
         super().__init__()
-        self.save_hyperparameters()
-        self.run_name = datetime.datetime.now().strftime("%b_%d_%YT%H_%M_%S")
+        self.save_hyperparameters(ignore=['model', 'env', 'action_transform', 'state_transform'])
+        self.state_transform = state_transform
+        self.action_transform = action_transform
 
         self.env = env
         self.net = model
@@ -113,6 +114,7 @@ class DQNLightning(LightningModule):
         if done:
             self.total_reward = self.episode_reward
             self.episode_reward = 0
+            self.reward_decreasing_counter = 0
 
         if self.global_step % self.hparams.sync_rate == 0:
             self.target_net.load_state_dict(self.net.state_dict())
@@ -130,6 +132,8 @@ class DQNLightning(LightningModule):
             if self.reward_decreasing_counter == self.hparams.reward_decreasing_limit:
                 done = True
                 self.agent.reset()
+        else:
+            self.reward_decreasing_counter = 0
         return done
 
     def configure_optimizers(self):
@@ -153,9 +157,13 @@ class DQNLightning(LightningModule):
     def on_train_epoch_end(self):
         if (self.current_epoch + 1) % self.hparams.log_video_epoch == 0:
             state = self.env.reset()
+
+            # WAIT FOR ZOOM
+            for i in range(20):
+                state, reward, done, _ = self.env.step([0, 0, 0])
             gif = [state]
 
-            state = self.hparams.state_transform(state)
+            state = self.state_transform(state)
             state_vector = [state, state, state, state]
 
             done = False
@@ -163,12 +171,12 @@ class DQNLightning(LightningModule):
             while not done:
                 state = np.expand_dims(np.stack(state_vector, axis=0), axis=0)
                 state = torch.Tensor(state).type('torch.FloatTensor').cuda(0)
-                action = self.hparams.action_transform(self.net.forward(state).squeeze().cpu().detach().numpy().argmax())
+                action = self.action_transform(self.net.forward(state).squeeze().cpu().detach().numpy().argmax())
                 new_state, reward, done, info = self.env.step(action)
 
                 gif.append(new_state)
 
-                new_state = self.hparams.state_transform(new_state)
+                new_state = self.state_transform(new_state)
                 state_vector.pop(0)
                 state_vector.append(new_state)
 

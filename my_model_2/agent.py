@@ -20,7 +20,7 @@ class Agent:
         state = self.env.reset()
 
         # WAIT FOR ZOOM
-        for i in range(20):
+        for i in range(50):
             state, reward, done, _ = self.env.step([0, 0, 0])
 
         state = self.state_transform(state)

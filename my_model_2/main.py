@@ -36,7 +36,7 @@ if __name__ == "__main__":
 
     trainer = Trainer(
         gpus=AVAIL_GPUS,
-        max_epochs=5000,
+        max_epochs=5000000,
         logger=wandb_logger,
         val_check_interval=100,
     )

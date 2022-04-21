@@ -2,9 +2,10 @@ import torch
 import torch.nn as nn
 import torch.nn.functional as F
 from torchsummary import summary
+import pytorch_lightning as pl
 
 
-class ConvModel(nn.Module):
+class ConvModel(pl.LightningModule):
     def __init__(self, conv_layers, in_shape=(1, 64, 64), kernel_sizes=None, lin_layers=None, num_classes=1):
         super().__init__()
 
