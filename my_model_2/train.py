@@ -24,6 +24,7 @@ class DQNLightning(LightningModule):
     def __init__(
             self,
             model: torch.nn.Module,
+            target_model: torch.nn.Module,
             env: gym.Env,
             action_transform=None,
             state_transform=None,
@@ -57,13 +58,13 @@ class DQNLightning(LightningModule):
             warm_start_steps: max episode reward in the environment
         """
         super().__init__()
-        self.save_hyperparameters(ignore=['model', 'env', 'action_transform', 'state_transform'])
+        self.save_hyperparameters(ignore=['model', 'target_model', 'env', 'action_transform', 'state_transform'])
         self.state_transform = state_transform
         self.action_transform = action_transform
 
         self.env = env
         self.net = model
-        self.target_net = copy.deepcopy(self.net)
+        self.target_net = target_model
 
         self.buffer = ReplayBuffer(self.hparams.replay_size)
         self.agent = Agent(self.env, self.buffer, state_transform=state_transform, action_transform=action_transform)
@@ -71,6 +72,7 @@ class DQNLightning(LightningModule):
 
         self.total_reward = 0
         self.episode_reward = 0
+        self.episodes = 0
         self.populate(self.hparams.warm_start_steps)
 
     def populate(self, steps=1000):
@@ -83,19 +85,34 @@ class DQNLightning(LightningModule):
 
     def dqn_mse_loss(self, batch, device):
         states, actions, rewards, dones, next_states = batch
+        dones = dones.type('torch.IntTensor').cuda(device)
+        states = states.type('torch.FloatTensor').cuda(device)
+        next_states = next_states.type('torch.FloatTensor').cuda(device)
+        ones_vector = torch.ones(len(dones)).cuda(device)
+        actions = actions.argmax(axis=1).type(torch.int64).unsqueeze(-1)
+        gamma = torch.FloatTensor([self.hparams.gamma] * len(dones)).cuda(device)
 
-        actions = actions.type(torch.int64).unsqueeze(1)
-        state_action_values = self.net(states.type('torch.FloatTensor').cuda(device)).gather(1, actions).squeeze(1)
+        state_action_values = self.net(states)
+        state_action_values = state_action_values.gather(1, actions).squeeze(1)
 
         with torch.no_grad():
-            next_state_values = self.target_net(next_states.type('torch.FloatTensor').cuda(device))
+            next_state_values = self.target_net(next_states)
             next_state_values = next_state_values.max(1)[0]
 
-        ones_vector = torch.ones(len(dones)).cuda(device)
-        gamma = torch.FloatTensor([self.hparams.gamma] * len(dones)).cuda(device)
-        expected_state_action_values = rewards + (next_state_values * gamma * (ones_vector-dones.type('torch.IntTensor').cuda(device)))
+        dones = (ones_vector-dones)
+        expected_state_action_values = (next_state_values * gamma * dones) + rewards
 
+        # penalty = self.calc_not_moving_penalty(states)
         return nn.MSELoss()(state_action_values, expected_state_action_values)
+
+    def calc_not_moving_penalty(self, state):
+        state_last = state[:, -1]
+        state_first = state[:, 0]
+        non_zero_diff = (state_last-state_first).count_nonzero(dim=(1, 2))
+        non_zero_diff[non_zero_diff < 10] = 4
+        non_zero_diff[non_zero_diff >= 10] = 1
+        return non_zero_diff
+
 
     def training_step(self, batch, nb_batch):
         device = self.get_device(batch)
@@ -113,6 +130,7 @@ class DQNLightning(LightningModule):
 
         if done:
             self.total_reward = self.episode_reward
+            self.episodes += 1
             self.episode_reward = 0
             self.reward_decreasing_counter = 0
 
@@ -121,15 +139,18 @@ class DQNLightning(LightningModule):
 
         self.log("total_reward", torch.tensor(self.total_reward).to(device))
         self.log("reward", torch.tensor(reward).to(device))
+        self.log("episode_reward", torch.tensor(self.episode_reward).to(device))
         self.log("train/loss", loss)
         self.log("steps", torch.tensor(self.global_step).to(device))
-        return loss
+        self.log("episodes", torch.tensor(self.episodes).to(device))
+        return {"loss": loss, "total_reward": self.total_reward}
 
     def check_early_stop(self, reward):
         done = False
         if reward < 0:
             self.reward_decreasing_counter += 1
             if self.reward_decreasing_counter == self.hparams.reward_decreasing_limit:
+                self.reward_decreasing_counter = 0
                 done = True
                 self.agent.reset()
         else:
@@ -159,7 +180,7 @@ class DQNLightning(LightningModule):
             state = self.env.reset()
 
             # WAIT FOR ZOOM
-            for i in range(20):
+            for i in range(50):
                 state, reward, done, _ = self.env.step([0, 0, 0])
             gif = [state]
 
@@ -171,7 +192,7 @@ class DQNLightning(LightningModule):
             while not done:
                 state = np.expand_dims(np.stack(state_vector, axis=0), axis=0)
                 state = torch.Tensor(state).type('torch.FloatTensor').cuda(0)
-                action = self.action_transform(self.net.forward(state).squeeze().cpu().detach().numpy().argmax())
+                action = self.action_transform(self.net.forward(state).squeeze().cpu().detach().numpy())
                 new_state, reward, done, info = self.env.step(action)
 
                 gif.append(new_state)

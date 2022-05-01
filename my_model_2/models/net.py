@@ -26,10 +26,11 @@ class ConvModel(pl.LightningModule):
             in_features = layer_size
 
         self.out_layer = nn.Linear(in_features, num_classes)
+        self.out_layer2 = nn.Linear(in_features, num_classes)
 
         self.pool = nn.MaxPool2d(2, 2)
         self.relu = torch.nn.LeakyReLU()
-        self.sigmoid = torch.nn.Sigmoid()
+        self.tanh = torch.nn.Tanh()
         summary(self, in_shape, device="cpu")
 
     def forward(self, x):
@@ -41,5 +42,6 @@ class ConvModel(pl.LightningModule):
         for layer in self.lin_layers:
             x = self.relu(layer(x))
 
-        x = self.sigmoid(self.out_layer(x))
-        return x
+        gas = self.tanh(self.out_layer(x))
+        steering_wheel = self.tanh(self.out_layer2(x))
+        return torch.cat((steering_wheel, gas), -1)
