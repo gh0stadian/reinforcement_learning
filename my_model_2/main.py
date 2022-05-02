@@ -38,6 +38,7 @@ if __name__ == "__main__":
                          action_transform=action_transform,
                          **train_config
                          )
+
     checkpoint_callback = ModelCheckpoint(monitor="total_reward",
                                           mode="max",
                                           dirpath='checkpoints/',
@@ -52,5 +53,6 @@ if __name__ == "__main__":
         callbacks=[checkpoint_callback],
         val_check_interval=100,
     )
+
     trainer.fit(model)
     wandb.finish()
