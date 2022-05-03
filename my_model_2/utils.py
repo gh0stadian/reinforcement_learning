@@ -24,6 +24,11 @@ def state_transform(state):
     return state
 
 
-def action_transform(action_index):
-    action = action_space[action_index]
-    return action
+def action_transform(action):
+    action_index = action.argmax()
+    actions = [[-action[action_index], 0, 0],   # LEFT STEER
+               [action[action_index], 0, 0],    # RIGHT STEER
+               [0, action[action_index], 0],    # GAS
+               [0, 0, action[action_index]],    # BRAKE
+               [0, 0, 0]]                       # DO NOTHING
+    return actions[action_index]
