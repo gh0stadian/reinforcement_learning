@@ -20,7 +20,9 @@ class ConvModel(nn.Module):
             self.conv_layers.append(nn.Conv2d(in_size, layer_size, kernel_size, padding='same'))
             in_size = layer_size
 
-        in_features = int(((in_shape[1] / pow(2, len(conv_layers))) ** 2) * conv_layers[-1])
+        in_features_x = int(in_shape[1] / pow(2, len(conv_layers)))
+        in_features_y = int(in_shape[2] / pow(2, len(conv_layers)))
+        in_features = in_features_x * in_features_y * conv_layers[-1]
         for layer_size in lin_layers:
             self.lin_layers.append(nn.Linear(in_features, layer_size))
             in_features = layer_size

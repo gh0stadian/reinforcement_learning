@@ -26,8 +26,6 @@ class Trainer:
         self.lr = config['lr']
         self.gamma = config['gamma']
         self.sync_rate = config['sync_rate']
-        self.reward_decreasing_limit = config['reward_decreasing_limit']
-        self.replay_size = config['replay_size']
         self.batch_size = config['batch_size']
 
         self.device = device
@@ -42,12 +40,14 @@ class Trainer:
         self.state_transform = state_transform
         self.action_transform = action_transform
 
-        self.buffer = ReplayBuffer(self.replay_size)
+        self.buffer = ReplayBuffer(config['replay_size'])
         self.agent = Agent(env,
                            self.buffer,
                            state_transform=state_transform,
                            action_transform=action_transform,
-                           step_length=4)
+                           step_length=1,
+                           state_size=4
+                           )
 
         self.reward_decreasing_counter = 0
         self.total_reward = 0
@@ -57,6 +57,7 @@ class Trainer:
         self.populate(config['warm_start_steps'])
 
     def populate(self, steps):
+        print("Populating buffer")
         for i in range(steps):
             self.agent.play_step(self.net, epsilon=1.0)
 
@@ -82,7 +83,6 @@ class Trainer:
 
     def train(self):
         max_episodes = 10000
-        constantly_decreasing_reward = 0
         self.net.train()
 
         for current_episode in tqdm(range(0, max_episodes)):
@@ -105,15 +105,6 @@ class Trainer:
                 for param in self.net.parameters():
                     param.grad.data.clamp_(-1, 1)
                 self.optimizer.step()
-
-                if reward < 0:
-                    constantly_decreasing_reward += 1
-                else:
-                    constantly_decreasing_reward = 0
-
-                if constantly_decreasing_reward > 30:
-                    done = True
-                    self.agent.reset()
 
             # swap params
             if current_episode % self.sync_rate == 0:

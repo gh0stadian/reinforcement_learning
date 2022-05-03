@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from config import action_space
 
 
 def rgb2grey(img):
@@ -14,11 +13,12 @@ def normalize(img):
 def state_transform(state):
     state = rgb2grey(state)
     # Crop img:
-    state = state[16:-16, 16:-16]
+    state = state[18:, :]
+    state[:2] = 0.0
+    state[177:] = 0.0
     state = normalize(state)
     return state
 
 
 def action_transform(action):
-    action = action_space[action]
     return action
