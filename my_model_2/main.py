@@ -1,54 +1,56 @@
-import gym
 import torch
 import wandb
-
-from my_model_2.models.net_classification import ConvModel
+from datetime import datetime
 from train import DQNLightning
 from pytorch_lightning import Trainer
 from pytorch_lightning.loggers import WandbLogger
-from pytorch_lightning.callbacks import ModelCheckpoint
+import pytorch_lightning as pl
 
-from config import train_config, model_config, env_config
-from utils import state_transform, action_transform
+from config import train_config, model_config, env_config, wrappers_config
+
+
+class CheckpointEveryEpoch(pl.Callback):
+    def __init__(self, log_every_n_epoch, save_path):
+        self.log_every_n_epoch = log_every_n_epoch
+        self.file_path = save_path
+
+    def on_epoch_end(self, trainer: pl.Trainer, _):
+        epoch = trainer.current_epoch
+        if (epoch+1) % self.log_every_n_epoch == 0:
+            ckpt_path = f"{self.file_path}.ckpt"
+            trainer.save_checkpoint(ckpt_path)
+
 
 AVAIL_GPUS = min(1, torch.cuda.device_count())
 
 wandb.init(project="RL-car", entity="jbdb")
-wandb_logger = WandbLogger(config=model_config)
+
+
+timestamp = datetime.now().strftime("%m_%d_%Y_T_%H_%M_%S")
+path = f"checkpoints/{timestamp}"
+
+wandb_logger = WandbLogger(config={'train': train_config,
+                                   'model': model_config,
+                                   'env': env_config,
+                                   'wrappers': wrappers_config,
+                                   'checkpoint_path': path,
+                                   }
+                           )
 
 if __name__ == "__main__":
-    env = gym.make(env_config['env_name'])
-
-    model = ConvModel(conv_layers=model_config['conv_layers'],
-                      in_shape=(4, 64, 64),
-                      lin_layers=model_config['lin_layers'],
-                      )
-
-    wandb_logger.watch(model, log="all")
-
-    target_model = ConvModel(conv_layers=model_config['conv_layers'],
-                             in_shape=(4, 64, 64),
-                             lin_layers=model_config['lin_layers'],
-                             )
-
-    model = DQNLightning(model=model,
-                         target_model=target_model,
-                         env=env,
-                         state_transform=state_transform,
-                         action_transform=action_transform,
+    model = DQNLightning(model_config=model_config,
+                         env_config=env_config,
+                         wrappers_config=wrappers_config,
                          **train_config
                          )
+    # model = DQNLightning.load_from_checkpoint(checkpoint_path="checkpoints/05_04_2022_T_16_12_58/_e35.ckpt")
+    wandb_logger.watch(model, log="all")
 
-    checkpoint_callback = ModelCheckpoint(monitor="total_reward",
-                                          mode="max",
-                                          dirpath='checkpoints/',
-                                          filename='sample-mnist-{epoch:02d}-{total_reward:.2f}',
-                                          save_top_k=2
-                                          )
+    checkpoint_callback = CheckpointEveryEpoch(2000, path)
 
     trainer = Trainer(
         gpus=AVAIL_GPUS,
-        max_epochs=5000000,
+        max_epochs=50000000000000,
         logger=wandb_logger,
         callbacks=[checkpoint_callback],
         val_check_interval=100,

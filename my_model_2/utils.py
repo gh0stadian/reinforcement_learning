@@ -1,6 +1,5 @@
 import matplotlib.pyplot as plt
 import numpy as np
-from config import action_space
 
 
 def rgb2grey(img):
@@ -15,20 +14,13 @@ def state_transform(state):
     state = rgb2grey(state)
 
     # Crop img:
-    state = state[16:-16, 16:-16]
+    state = state[18:, :]
+    state[:2] = 0.0
+    state[177:] = 0.0
 
     state = normalize(state)
-    # state = state * 2 - 1
-
-    # state = np.expand_dims(state, axis=0)
     return state
 
 
 def action_transform(action):
-    action_index = action.argmax()
-    actions = [[-action[action_index], 0, 0],   # LEFT STEER
-               [action[action_index], 0, 0],    # RIGHT STEER
-               [0, action[action_index], 0],    # GAS
-               [0, 0, action[action_index]],    # BRAKE
-               [0, 0, 0]]                       # DO NOTHING
-    return actions[action_index]
+    return action

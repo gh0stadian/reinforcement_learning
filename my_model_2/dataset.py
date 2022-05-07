@@ -1,6 +1,7 @@
 from collections import deque, namedtuple
 from typing import Tuple
 import numpy as np
+import torch
 from torch.utils.data.dataset import IterableDataset
 
 
@@ -25,12 +26,13 @@ class ReplayBuffer:
         states, actions, rewards, dones, next_states = zip(*(self.buffer[idx] for idx in indices))
 
         return (
-            np.array(states),
-            np.array(actions),
-            np.array(rewards, dtype=np.float32),
-            np.array(dones, dtype=np.bool),
-            np.array(next_states),
+            torch.from_numpy(np.array(states)).float(),
+            torch.from_numpy(np.array(actions)).long(),
+            torch.from_numpy(np.array(rewards, dtype=np.float32)),
+            torch.from_numpy(np.array(dones, dtype=np.uint8)),
+            torch.from_numpy(np.array(next_states)).float(),
         )
+
 
 
 class RLDataset(IterableDataset):

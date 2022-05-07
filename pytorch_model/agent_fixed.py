@@ -6,15 +6,16 @@ import wandb
 
 from dataset_fixed import Experience
 from env_wrappers import FireResetEnv, MaxAndSkipEnv, ClipRewardEnv
+from config import wrappers_config
 
 
 class Agent:
-    def __init__(self, env, replay_buffer, state_transform=None, action_transform=None, step_length=1, state_size=4):
+    def __init__(self, env, replay_buffer, state_transform=None, action_transform=None, state_size=4, device=None):
         self.env = self.create_env(env)
         self.replay_buffer = replay_buffer
         self.state_transform = state_transform
         self.action_transform = action_transform
-        self.step_length = step_length
+        self.device = device
         self.state = None
         self.state_size = state_size
 
@@ -23,9 +24,12 @@ class Agent:
         self.reset()
 
     def create_env(self, env):
-        env = FireResetEnv(env)
-        # env = MaxAndSkipEnv(env)
-        # env = ClipRewardEnv(env)
+        if wrappers_config['fire_reset']:
+            env = FireResetEnv(env)
+        if wrappers_config['max_n_skip']:
+            env = MaxAndSkipEnv(env)
+        if wrappers_config['clip_reward']:
+            env = ClipRewardEnv(env)
         return env
 
     def reset(self):
@@ -33,22 +37,21 @@ class Agent:
         self.state_vector = [self.state_transform(state)] * self.state_size
         self.state = np.stack(self.state_vector, axis=0)
 
-    def get_action(self, net, epsilon, device):
+    def get_action(self, net, epsilon):
         if np.random.random() < epsilon:
             action = self.env.action_space.sample()
 
         else:
             state = np.expand_dims(self.state, axis=0)
             state = torch.tensor(state)
-            if device not in ["cpu"]:
-                state = state.type('torch.FloatTensor').cuda(device)
+            state = state.type('torch.FloatTensor').to(self.device)
 
             action = net(state).argmax().squeeze().cpu().numpy()
         return action
 
     @torch.no_grad()
-    def play_step(self, net, epsilon=0.0, device="cpu"):
-        action = self.get_action(net, epsilon, device)
+    def play_step(self, net, epsilon=0.0):
+        action = self.get_action(net, epsilon)
 
         state, reward, done, _ = self.env.step(action)
 
@@ -67,13 +70,13 @@ class Agent:
 
         return reward, done
 
-    def record_play(self, net, device="cpu"):
+    def record_play(self, net):
         recording = []
         done = False
 
         self.reset()
         while not done:
-            action = self.get_action(net, 0.0, device)
+            action = self.get_action(net, 0.0)
             state, reward, done, _ = self.env.step(action)
             recording.append(state)
 

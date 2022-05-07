@@ -13,24 +13,25 @@ class ConvModel(pl.LightningModule):
         self.lin_layers = nn.ModuleList()
 
         if kernel_sizes is None:
-            kernel_sizes = [(5, 5)] * len(conv_layers)
+            kernel_sizes = [(3, 3)] * len(conv_layers)
 
         in_size = in_shape[0]
         for layer_size, kernel_size in zip(conv_layers, kernel_sizes):
             self.conv_layers.append(nn.Conv2d(in_size, layer_size, kernel_size, padding='same'))
             in_size = layer_size
 
-        in_features = int(((in_shape[1] / pow(2, len(conv_layers))) ** 2) * conv_layers[-1])
+        in_features_x = int(in_shape[1] / pow(2, len(conv_layers)))
+        in_features_y = int(in_shape[2] / pow(2, len(conv_layers)))
+        in_features = in_features_x * in_features_y * conv_layers[-1]
         for layer_size in lin_layers:
             self.lin_layers.append(nn.Linear(in_features, layer_size))
             in_features = layer_size
 
-        self.out_layer = nn.Linear(in_features, num_classes)
-        self.out_layer2 = nn.Linear(in_features, num_classes)
-
         self.pool = nn.MaxPool2d(2, 2)
         self.relu = torch.nn.LeakyReLU()
-        self.tanh = torch.nn.Tanh()
+
+        self.out_layer = nn.Linear(in_features, num_classes)
+        self.soft_max = nn.Softmax()
         summary(self, in_shape, device="cpu")
 
     def forward(self, x):
@@ -42,6 +43,5 @@ class ConvModel(pl.LightningModule):
         for layer in self.lin_layers:
             x = self.relu(layer(x))
 
-        gas = self.tanh(self.out_layer(x))
-        steering_wheel = self.tanh(self.out_layer2(x))
-        return torch.cat((steering_wheel, gas), -1)
+        x = self.soft_max(self.out_layer(x))
+        return x
