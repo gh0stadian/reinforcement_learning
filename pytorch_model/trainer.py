@@ -31,6 +31,7 @@ class Trainer:
         self.eps_start = config['eps_start']
         self.eps_end = config['eps_end']
         self.eps_decay = config['eps_decay']
+        self.replay_size = config['replay_size']
 
         self.start_episode = episode
 
@@ -54,7 +55,7 @@ class Trainer:
         self.state_transform = state_transform
         self.action_transform = action_transform
 
-        self.buffer = ReplayBuffer(config['replay_size'])
+        self.buffer = ReplayBuffer(self.replay_size)
         self.agent = Agent(env,
                            self.buffer,
                            state_transform=state_transform,
@@ -129,6 +130,7 @@ class Trainer:
                 for param in self.net.parameters():
                     param.grad.data.clamp_(-1, 1)
                 self.optimizer.step()
+
             # swap params
             if current_episode % self.sync_rate == 0:
                 self.target_net.load_state_dict(self.net.state_dict())
@@ -139,6 +141,10 @@ class Trainer:
                 wandb.log({"video": wandb.Video(video.swapaxes(3, 2).swapaxes(2, 1), fps=24)}, step=current_episode)
                 self.save_model(current_episode)
 
+            if (current_episode+1) % 100 == 0:
+                print("Generating random moves.......")
+                for i in range(self.replay_size // 2):
+                    self.agent.play_step(self.net, epsilon=0.5)
 
             wandb.log({"episode/length": length,
                        "episode/reward": score,

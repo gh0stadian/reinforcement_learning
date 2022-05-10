@@ -4,7 +4,7 @@ train_config = {
     'gamma': 0.99,
     'sync_rate': 10,
     'replay_size': 10000,
-    'eps_decay': 200,
+    'eps_decay': 400,
     'eps_start': 0.9,
     'eps_end': 0.05,
     'warm_start_steps': 8000,
@@ -24,10 +24,10 @@ env_config = {
 
 wrappers_config = {
     'fire_reset': True,
-    'max_n_skip': False,
+    'max_n_skip': True,
     'clip_reward': True
 }
 
 load_model = {
-    "path": "checkpoints/05_07_2022_T_19_02_02",
+    "path": "checkpoints/05_10_2022_T_17_50_10",
 }
