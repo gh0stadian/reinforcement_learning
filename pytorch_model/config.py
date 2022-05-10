@@ -4,6 +4,7 @@ train_config = {
     'gamma': 0.99,
     'sync_rate': 10,
     'replay_size': 10000,
+    'randomize_replay_freq': 100,
     'eps_decay': 400,
     'eps_start': 0.9,
     'eps_end': 0.05,

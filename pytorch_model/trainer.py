@@ -32,6 +32,7 @@ class Trainer:
         self.eps_end = config['eps_end']
         self.eps_decay = config['eps_decay']
         self.replay_size = config['replay_size']
+        self.randomize_replay_freq = config['randomize_replay_freq']
 
         self.start_episode = episode
 
@@ -141,7 +142,7 @@ class Trainer:
                 wandb.log({"video": wandb.Video(video.swapaxes(3, 2).swapaxes(2, 1), fps=24)}, step=current_episode)
                 self.save_model(current_episode)
 
-            if (current_episode+1) % 100 == 0:
+            if (current_episode+1) % self.randomize_replay_freq == 0:
                 print("Generating random moves.......")
                 for i in range(self.replay_size // 2):
                     self.agent.play_step(self.net, epsilon=0.5)
